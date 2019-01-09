@@ -173,17 +173,7 @@ int main(int argc, char** argv)
 	int nx = 400;
 	int ny = 300;
 	int ns = 200;
-	if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
-		std::cout << "SDL_Init Error: " << SDL_GetError() << std::endl;
-		return 1;
-	}
-	window = SDL_CreateWindow("Hello World!", 100, 100, nx, ny, SDL_WINDOW_SHOWN);
-	if (window == NULL) {
-		std::cout << "SDL_CreateWindow Error: " << SDL_GetError() << std::endl;
-		return 1;
-	}
-
-	
+		
 	unsigned char* r = new unsigned char[nx * ny];
 	unsigned char* g = new unsigned char[nx * ny];
 	unsigned char* b = new unsigned char[nx * ny];
@@ -192,99 +182,108 @@ int main(int argc, char** argv)
 	world = random_scene(6);
 	
 	unsigned char* pixels = new unsigned char[nx * ny * 3];
-
-	SDL_Surface *surface_bmp = SDL_CreateRGBSurfaceFrom((void*)pixels,
-		nx,
-		ny,
-		3 * 8,					// bits per pixel = 24
-		nx * 3,				// pitch
-		0x0000FF,				// red mask
-		0x00FF00,				// green mask
-		0xFF0000,				// blue mask
-		0);						// alpha mask (none)
-
-	SDL_Surface *surface_window = SDL_GetWindowSurface(window);
-
+	
 	float x = 13.0f;
-	while (true)
-	{
-		math::vec lookfrom(21, -8, 11);
-		math::vec lookat(0, 0, 0);
-		float dist_to_focus = (lookfrom - lookat).mag();
-		float aperture = 0.1f;
-		camera cam(lookfrom, lookat, math::vec(0, 1, 0), 20, float(nx) / float(ny), aperture, dist_to_focus);
+	math::vec lookfrom(21, -8, 11);
+	math::vec lookat(0, 0, 0);
+	float dist_to_focus = (lookfrom - lookat).mag();
+	float aperture = 0.1f;
+	camera cam(lookfrom, lookat, math::vec(0, 1, 0), 20, float(nx) / float(ny), aperture, dist_to_focus);
 		
+	int start_x = 0;
+	int start_y = 0;
+	int interval_x = 2;
+	int interval_y = 10;
+	SDL_Surface *surface_bmp;
+	SDL_Surface *surface_window;
+	std::thread rendering([](SDL_Surface *surface_bmp, SDL_Surface *surface_window, SDL_Window *window, int nx, int ny, unsigned char* pixels) {
+
+		if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
+			std::cout << "SDL_Init Error: " << SDL_GetError() << std::endl;
+			return;
+		}
+		window = SDL_CreateWindow("Hello World!", 100, 100, nx, ny, SDL_WINDOW_SHOWN);
+		if (window == NULL) {
+			std::cout << "SDL_CreateWindow Error: " << SDL_GetError() << std::endl;
+			return;
+		}
+
+		surface_bmp = SDL_CreateRGBSurfaceFrom((void*)pixels,
+			nx,
+			ny,
+			3 * 8,					// bits per pixel = 24
+			nx * 3,				// pitch
+			0x0000FF,				// red mask
+			0x00FF00,				// green mask
+			0xFF0000,				// blue mask
+			0);						// alpha mask (none)
+
+		surface_window = SDL_GetWindowSurface(window);
 		SDL_BlitSurface(surface_bmp,
 			NULL,
 			surface_window,
 			NULL);
 		SDL_UpdateWindowSurface(window);
-
-		int start_x = 0;
-		int start_y = 0;
-		int interval_x = 2;
-		int interval_y = 10;
-
-		std::thread rendering([](SDL_Surface *a, SDL_Surface *b, SDL_Window *c) {
-			for (;;) {  
-				SDL_Event event;
-				while (SDL_PollEvent(&event)) {
-					switch (event.type)
-					{
-					case SDL_KEYDOWN:
-						if (event.key.keysym.sym == SDLK_ESCAPE)
-							return;
-						break;
-					case SDL_QUIT:
+		for (;;) {  
+			SDL_Event event;
+			while (SDL_PollEvent(&event)) {
+				switch (event.type)
+				{
+				case SDL_KEYDOWN:
+					if (event.key.keysym.sym == SDLK_ESCAPE)
 						return;
-						break;
-					}
+					break;
+				case SDL_QUIT:
+					return;
+					break;
 				}
-
-				Sleep(1000.f / 60.f);
-				SDL_BlitSurface(a,
-					NULL,
-					b,
-					NULL);
-				SDL_UpdateWindowSurface(c);
 			}
-		}, surface_bmp, surface_window, window);
 
-		std::vector<int*> xys;
-		std::vector<std::thread> threads;
+			Sleep(1000.f / 60.f);
+			SDL_BlitSurface(surface_bmp,
+				NULL,
+				surface_window,
+				NULL);
+			SDL_UpdateWindowSurface(window);
+		}
+	}, surface_bmp, surface_window, window, nx, ny, pixels);
+
+	std::vector<int*> xys;
+	std::vector<std::thread> threads;
+	for (;;)
+	{
 		for (;;)
 		{
-			for (;;)
-			{
-				if (rand() % 2)
-					xys.push_back(new int[4]{ start_x, start_x + interval_x, start_y, start_y + interval_y });
-				else
-					xys.push_back(new int[4]{ start_x + interval_x, start_x, start_y + interval_y, start_y });
+			if (rand() % 2)
+				xys.push_back(new int[4]{ start_x, start_x + interval_x, start_y, start_y + interval_y });
+			else
+				xys.push_back(new int[4]{ start_x + interval_x, start_x, start_y + interval_y, start_y });
 
-				start_y += interval_y;
-				if (start_y == ny - 1)
-					break;
-				if (start_y + interval_y >= ny)
-					start_y = ny - interval_y - 1;
-			}
-			start_x += interval_x;
-			if (start_x == nx - 1)
+			start_y += interval_y;
+			if (start_y == ny - 1)
 				break;
-			if (start_x + interval_x >= nx)
-				start_x = nx - interval_x - 1;
-			start_y = 0;
+			if (start_y + interval_y >= ny)
+				start_y = ny - interval_y - 1;
 		}
-
-		for (int i = xys.size() - 1; i >= 0; i--)
-		{
-			int ind = rand() % xys.size();
-			threads.push_back(std::thread(set_pixels, xys[ind][0], xys[ind][1], xys[ind][2], xys[ind][3], ns, nx, ny, cam, world, r, g, b, pixels));
-			xys.erase(xys.begin() + ind);
-		}
-		
-		rendering.join();
-		
+		start_x += interval_x;
+		if (start_x == nx - 1)
+			break;
+		if (start_x + interval_x >= nx)
+			start_x = nx - interval_x - 1;
+		start_y = 0;
 	}
+
+	for (int i = xys.size() - 1; i >= 0; i--)
+	{
+		int ind = rand() % xys.size();
+		threads.push_back(std::thread(set_pixels, xys[ind][0], xys[ind][1], xys[ind][2], xys[ind][3], ns, nx, ny, cam, world, r, g, b, pixels));
+		xys.erase(xys.begin() + ind);
+	}
+		
+	rendering.join();
+	for (int i = 0; i < threads.size(); i++)
+		threads[i].join();
+		
 	SDL_DestroyWindow(window);
 	SDL_Quit();
 
